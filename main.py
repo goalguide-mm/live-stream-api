@@ -19,6 +19,7 @@ def get_live():
     }
     try:
         response = requests.get(target_url, headers=headers, timeout=15)
+        # m3u8 link ကို ရှာဖွေခြင်း
         match = re.search(r'https?://[^\s"\'<>]+?\.m3u8', response.text)
         if match:
             return jsonify({"status": "success", "url": match.group(0)})
@@ -27,6 +28,6 @@ def get_live():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == '__main__':
-    # Render အတွက် Port သတ်မှတ်ချက် (ဒါအရေးကြီးဆုံးပါ)
+    # Render အတွက် Port ကို အလိုအလျောက် ယူခိုင်းရပါမယ်
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
