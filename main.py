@@ -5,8 +5,7 @@ import requests
 import re
 
 app = Flask(__name__)
-# CORS ကို အားလုံးအတွက် ခွင့်ပြုပေးထားပါတယ်
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app)
 
 @app.route('/')
 def home():
@@ -14,46 +13,49 @@ def home():
 
 @app.route('/get-live')
 def get_live():
-    # Target Website (yuyantv.cn)
+    # Target Website
     target_url = "https://m.yuyantv.cn/"
+    
+    # Browser အစစ်ကနေ ဝင်သလိုမျိုး Header တွေကို အပြည့်အစုံထည့်မယ်
     headers = {
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/04.1',
-        'Referer': 'https://m.yuyantv.cn/'
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Mobile Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
     }
     
     try:
-        response = requests.get(target_url, headers=headers, timeout=15)
-        response.encoding = 'utf-8' # စာသားတွေ မမှားအောင် encoding သတ်မှတ်ပေးတယ်
+        # Session ကိုသုံးပြီး Website ကို ပိုမိုနက်ရှိုင်းအောင် ဖတ်မယ်
+        session = requests.Session()
+        response = session.get(target_url, headers=headers, timeout=20)
         
-        # ပိုမိုစုံလင်သော m3u8 ရှာဖွေမှုစနစ် (Regex patterns)
-        patterns = [
-            r'https?://[^\s"\'<>]+?\.m3u8[^\s"\'<>]*',
-            r'//[^\s"\'<>]+?\.m3u8'
-        ]
+        # m3u8 link ကို ရှာဖွေခြင်း (Regex ကို ပိုကျယ်ပြန့်အောင် ထားမယ်)
+        # quotes တွေကြားထဲက .m3u8 ပါတဲ့ link တွေကို အကုန်ရှာမယ်
+        links = re.findall(r'["\'](https?://[^\s"\'<>]+?\.m3u8[^\s"\'<>]*?)["\']', response.text)
         
-        found_url = None
-        for pattern in patterns:
-            match = re.search(pattern, response.text)
-            if match:
-                found_url = match.group(0)
-                # လင့်ခ်က // နဲ့စရင် https: ထည့်ပေးမယ်
-                if found_url.startswith('//'):
-                    found_url = 'https:' + found_url
-                break
+        # ဒုတိယနည်းလမ်း - // နဲ့စတဲ့ link တွေပါ ထပ်ရှာမယ်
+        if not links:
+            links = re.findall(r'["\'](//[^\s"\'<>]+?\.m3u8[^\s"\'<>]*?)["\']', response.text)
+            links = ["https:" + l if l.startswith("//") else l for l in links]
 
-        if found_url:
+        if links:
+            # ပထမဆုံးတွေ့တဲ့ link ကို ယူမယ်
             return jsonify({
                 "status": "success", 
-                "url": found_url,
-                "provider": "yuyantv"
+                "url": links[0],
+                "all_links": links # တွေ့သမျှ link အကုန်လုံးကိုလည်း စစ်လို့ရအောင် ပြပေးမယ်
             })
             
-        return jsonify({"status": "error", "message": "No live link found"}), 404
+        return jsonify({
+            "status": "error", 
+            "message": "No live link found",
+            "debug_info": response.text[:200] # Website ဘာစာသားပြန်ပေးလဲဆိုတာ သိရအောင် (စစ်ဆေးဖို့)
+        }), 404
         
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == '__main__':
-    # Render အတွက် Port သတ်မှတ်ချက်
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
