@@ -9,35 +9,33 @@ CORS(app)
 
 @app.route('/')
 def home():
-    return "API is Running Successfully!"
+    return "MeetBSD API is Live!"
 
 @app.route('/get-live')
 def get_live():
-    target_url = "https://m.yuyantv.cn/"
+    # Target Website ပြောင်းလိုက်ပြီ
+    target_url = "https://www.meetbsd.com/"
     headers = {
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/04.1',
-        'Referer': 'https://m.yuyantv.cn/'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
     
     try:
         response = requests.get(target_url, headers=headers, timeout=15)
         
-        # နည်းလမ်း (၁) - တိုက်ရိုက် m3u8 လင့်ခ်ကို ရှာမယ်
-        links = re.findall(r'https?://[^\s"\'<>]+?\.m3u8[^\s"\'<>]*', response.text)
-        
-        # နည်းလမ်း (၂) - ပုန်းနေတဲ့ link တွေကို ရှာမယ်
-        if not links:
-            links = re.findall(r'["\'](//[^\s"\'<>]+?\.m3u8[^\s"\'<>]*?)["\']', response.text)
-            links = ["https:" + l if l.startswith("//") else l for l in links]
+        # .m3u8 လင့်ခ် သို့မဟုတ် YouTube Live link တွေကို ရှာမယ်
+        # (MeetBSD က တစ်ခါတလေ YouTube သုံးတတ်လို့ပါ)
+        m3u8_links = re.findall(r'https?://[^\s"\'<>]+?\.m3u8[^\s"\'<>]*', response.text)
+        youtube_links = re.findall(r'https?://(?:www\.)?youtube\.com/embed/[^\s"\'<>?]+', response.text)
 
-        if links:
-            # ပထမဆုံးလင့်ခ်ကို ပြန်ပေးမယ်
-            return jsonify({"status": "success", "url": links[0]})
+        if m3u8_links:
+            return jsonify({"status": "success", "url": m3u8_links[0]})
+        elif youtube_links:
+            return jsonify({"status": "success", "type": "youtube", "url": youtube_links[0]})
             
         return jsonify({
             "status": "error", 
-            "message": "Link not found in page source",
-            "check_this": response.text[:100] # Debug အတွက် စာသားအနည်းငယ်ပြမယ်
+            "message": "No live stream detected on meetbsd.com",
+            "debug": response.text[:200]
         }), 404
         
     except Exception as e:
