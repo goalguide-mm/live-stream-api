@@ -5,11 +5,11 @@ import requests
 import re
 
 app = Flask(__name__)
-CORS(app)
+CORS(app) # Website ကနေ လှမ်းခေါ်လို့ရအောင် လမ်းဖွင့်ပေးတာပါ
 
 @app.route('/')
 def home():
-    return "Streaming API is Running!"
+    return "API is Running Successfully!"
 
 @app.route('/get-live')
 def get_live():
@@ -19,7 +19,6 @@ def get_live():
     }
     try:
         response = requests.get(target_url, headers=headers, timeout=15)
-        # m3u8 link ကို ရှာဖွေခြင်း
         match = re.search(r'https?://[^\s"\'<>]+?\.m3u8', response.text)
         if match:
             return jsonify({"status": "success", "url": match.group(0)})
@@ -28,6 +27,6 @@ def get_live():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == '__main__':
-    # Render အတွက် အရေးကြီးဆုံးအပိုင်း
+    # Render အတွက် Port သတ်မှတ်ချက် (ဒါအရေးကြီးဆုံးပါ)
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
