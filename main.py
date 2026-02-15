@@ -1,93 +1,56 @@
-import os
-from flask import Flask, jsonify
-from flask_cors import CORS
-import requests
 import re
-from bs4 import BeautifulSoup
-from datetime import datetime
+import time
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 
-app = Flask(__name__)
-CORS(app)
+def scrape_all_sites(site_list):
+    # Browser အပြင်မှာ မမြင်ရအောင် ပိတ်ထားမယ် (Headless)
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
 
-@app.route('/')
-def home():
-    return "Goal Guide API is Live and Auto-Updating!"
-
-# ၁။ Live Stream ရှာရန် API
-@app.route('/get-live')
-def get_live():
-    target_url = "https://www.meetbsd.com/"
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
     
-    try:
-        response = requests.get(target_url, headers=headers, timeout=15)
-        
-        # .m3u8 လင့်ခ် သို့မဟုတ် YouTube Live link တွေကို ရှာမယ်
-        m3u8_links = re.findall(r'https?://[^\s"\'<>]+?\.m3u8[^\s"\'<>]*', response.text)
-        youtube_links = re.findall(r'https?://(?:www\.)?youtube\.com/embed/[^\s"\'<>?]+', response.text)
+    all_live_links = {}
 
-        if m3u8_links:
-            return jsonify({"status": "success", "url": m3u8_links[0]})
-        elif youtube_links:
-            return jsonify({"status": "success", "type": "youtube", "url": youtube_links[0]})
+    for site_url in site_list:
+        print(f"ရှာဖွေနေသည်: {site_url} ...")
+        try:
+            driver.get(site_url)
+            time.sleep(5) # Website ပွင့်ဖို့နဲ့ JavaScript အလုပ်လုပ်ဖို့ ခဏစောင့်မယ်
             
-        return jsonify({
-            "status": "error", 
-            "message": "No live stream detected at the moment",
-        }), 404
-        
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-# ၂။ ပွဲစဉ်ဇယား (Matches) များကို Auto Scrape လုပ်ရန် API
-@app.route('/get-matches')
-def get_matches():
-    target_url = "https://www.meetbsd.com/"
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-    
-    try:
-        response = requests.get(target_url, headers=headers, timeout=15)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        matches_list = []
-        
-        # MeetBSD ၏ Structure အလိုက် match item များကို ရှာဖွေခြင်း
-        # မှတ်ချက် - class အမည်များ ပြောင်းလဲပါက ဤနေရာတွင် ပြင်ရန်လိုအပ်သည်
-        items = soup.select('.match-item, .live-match, .match-card') 
-        
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-
-        for item in items[:15]: # အများဆုံး ၁၅ ပွဲစာ ယူမယ်
-            text = item.get_text(separator=" ", strip=True)
+            page_source = driver.page_source
+            # .m3u8 လင့်ခ်တွေကို ပုံစံထုတ်ပြီး ရှာမယ်
+            links = re.findall(r'(https?://[^\s\'"]+\.m3u8[^\s\'"]*)', page_source)
             
-            # ပွဲစဉ်ဒေတာများကို ပုံစံသွင်းခြင်း
-            matches_list.append({
-                "time": "Updated",
-                "home": text if len(text) < 50 else text[:47] + "...",
-                "away": "Live Info",
-                "league": "MeetBSD Schedule",
-                "last_update": current_time
-            })
+            if links:
+                all_live_links[site_url] = list(set(links))
+                print(f"တွေ့ရှိမှု: {len(links)} ခု ရရှိသည်။")
+            else:
+                print("လင့်ခ်အသစ် မတွေ့ပါ။")
+                
+        except Exception as e:
+            print(f"Error တက်နေသည် {site_url}: {e}")
 
-        # ရှာမတွေ့ပါက Placeholder data ပြပေးရန်
-        if not matches_list:
-            matches_list = [{
-                "time": "Soon",
-                "home": "No Upcoming Matches",
-                "away": "Check later",
-                "league": "Daily Update",
-                "last_update": current_time
-            }]
-            
-        return jsonify({"status": "success", "matches": matches_list})
-        
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    driver.quit()
+    return all_live_links
 
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+# သင်ရှာချင်တဲ့ Website ၅ ခုလောက်ကို ဒီအောက်မှာ ထည့်ပါ
+my_target_sites = [
+    "https://example-sports-1.com",
+    "https://example-sports-2.com",
+    "https://burmese.live",
+    "https://another-live-site.net"
+]
+
+# စတင်လုပ်ဆောင်ခြင်း
+results = scrape_all_sites(my_target_sites)
+
+print("\n--- စုစည်းရရှိထားသော Live Links များ ---")
+for site, links in results.items():
+    print(f"\nWebsite: {site}")
+    for l in links:
+        print(f"  > {l}")
