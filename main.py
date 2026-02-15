@@ -1,14 +1,14 @@
 from flask import Flask, jsonify
-from flask_cors import CORS  # CORS အတွက် ထပ်ထည့်ထားသည်
+from flask_cors import CORS
 import requests
 import re
 import os
 
 app = Flask(__name__)
-CORS(app) # Website ကနေ API ခေါ်လို့ရအောင် ခွင့်ပြုခြင်း
+CORS(app)  # Browser ကနေ လှမ်းခေါ်ရင် Block မဖြစ်အောင် လုပ်ပေးတာပါ
 
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 }
 
 def scrape_live_links():
@@ -23,32 +23,34 @@ def scrape_live_links():
     
     for site in target_sites:
         try:
-            r = requests.get(site, headers=HEADERS, timeout=8)
+            # timeout ကို ၅ စက္ကန့်ပဲ ထားပါ (Render က ကြာရင် ပိတ်တတ်လို့ပါ)
+            r = requests.get(site, headers=HEADERS, timeout=5)
+            # m3u8 လင့်ခ်တွေကို ရှာဖွေခြင်း
             links = re.findall(r'(https?://[^\s\'"]+\.m3u8[^\s\'"]*)', r.text)
             
             for l in links:
                 found_links.append({
-                    "title": f"Live Link from {site.split('//')[1].split('/')[0]}",
+                    "title": f"Live Link ({site.split('//')[1].split('/')[0]})",
                     "url": l,
                     "source": site
                 })
-        except:
+        except Exception as e:
+            print(f"Error scraping {site}: {e}")
             continue
             
     return found_links
 
-# Frontend က ခေါ်နေတဲ့ /get-live endpoint ကို ဖန်တီးခြင်း
+# Frontend က ခေါ်နေတဲ့ /get-live endpoint ကို တိတိကျကျ ပေးထားရမယ်
 @app.route('/get-live')
 def get_live():
     data = scrape_live_links()
     if not data:
-        return jsonify([{"title": "No Matches Found", "url": "", "source": "System"}])
+        return jsonify([{"title": "Data Updating... Please Refresh", "url": "", "source": "System"}])
     return jsonify(data)
 
-# Home route အတွက်ပါ ထားပေးထားသည်
 @app.route('/')
 def home():
-    return jsonify({"status": "API is running", "endpoint": "/get-live"})
+    return jsonify({"status": "API is online", "endpoint": "/get-live"})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
